@@ -581,7 +581,7 @@ const nameForm = (btnLabel) => `<form id="nameForm" autocomplete="off">
 function skeleton(key){
   switch (key){
     case 'home': return `
-      <div class="hero"><div class="logo">${rainbow('ジェスチャー\nパーティー')}</div><p>体だけで伝えて、みんなで当てよう！</p></div>
+      <div class="hero"><img class="hero-logo" src="img/logo.png" alt="ジェスチャーパーティー" width="1100" height="560"><p>体だけで伝えて、みんなで当てよう！</p></div>
       ${localBanner()}
       <div class="card">${nameForm('部屋をつくる')}</div>
       <div class="card howto"><h3>あそびかた</h3><ol>
@@ -590,7 +590,7 @@ function skeleton(key){
         <li>声を出さずにジェスチャーで伝える！</li>
         <li>ほかの人は答えを入力するか、声で答える</li></ol></div>`;
     case 'join': return `
-      <div class="hero"><div class="logo sm">${rainbow('ジェスチャー\nパーティー')}</div></div>
+      <div class="hero"><img class="hero-logo sm" src="img/logo.png" alt="ジェスチャーパーティー" width="1100" height="560"></div>
       ${localBanner()}
       <div class="card"><h2>部屋 <span style="letter-spacing:.1em">${esc(S.pendingRoom || S.roomId)}</span> にさんか</h2>${nameForm('入る')}
       <button class="link-btn" type="button" data-action="home">新しく部屋をつくる</button></div>`;
@@ -634,7 +634,7 @@ function skeleton(key){
       <div class="card"><h3>スコア</h3><div id="scoreboard"></div></div>
       <div id="nextArea"></div>`, 'turnend')}`;
     case 'final': return `${topbar()}
-      <div class="center-stage"><div class="final-title">🏆 けっかはっぴょう 🏆</div></div>
+      <div class="center-stage final-head"><img class="final-chara" src="img/chara-hakushu.png" alt=""><div class="final-title">🏆 けっか<br>はっぴょう</div><img class="final-chara" src="img/chara-jump.png" alt=""></div>
       <div id="finalArea" class="final-grid"></div><div id="finalActions" class="final-actions"></div>`;
   }
   return '';
@@ -975,19 +975,29 @@ function toggleQr(){
 function showIntro(){
   const el = document.getElementById('intro'); if (!el) return;
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const cols = ['#ff5c8a','#ff9f1c','#ffd23f','#2ec4b6','#3a86ff','#8338ec'];
-  let i = 0;
-  const line = t => `<div class="intro-line">${[...t].map(ch =>
-    `<span style="--i:${i};color:${cols[i++ % cols.length]}">${esc(ch)}</span>`).join('')}</div>`;
-  document.getElementById('introLogo').innerHTML = line('ジェスチャー') + line('パーティー');
-  // ロゴのまわりに飛び出すジェスチャーの人たち（位置x%, y%, 遅れms）
-  const people = [['🙆',12,18,0],['🤷',84,16,120],['💃',8,72,240],['🕺',88,70,360],['🙋',10,87,480],['🤸',90,87,600],['🙅',50,10,720]];
-  document.getElementById('introEmojis').innerHTML = people.map(([e, x, y, d]) =>
-    `<span style="left:${x}%;top:${y}%;--d:${d}ms">${e}</span>`).join('');
+  // ロゴのまわりに飛び出すキャラクター（画像, 位置x%, y%, 遅れms）
+  // 縦長画面：上・左右・下にちらす／横長画面：左右の列に並べる
+  const wide = innerWidth > innerHeight;
+  const people = wide
+    ? [['maru',9,17,0],['batsu',91,17,110],['dance',8,50,220],['te',92,50,330],
+       ['kangaeru',9,83,440],['hakushu',91,83,550],['jump',25,86,660],['kashige',75,86,770]]
+    : [['maru',14,13,0],['batsu',50,9,110],['kashige',86,13,220],['dance',10,69,330],
+       ['te',90,69,440],['jump',50,77,550],['kangaeru',11,89,660],['hakushu',89,89,770]];
+  document.getElementById('introEmojis').innerHTML = people.map(([n, x, y, d]) =>
+    `<img src="img/chara-${n}.png" alt="" style="left:${x}%;top:${y}%;--d:${d}ms">`).join('');
   el.hidden = false;
   document.body.classList.add('intro-open');
-  let closed = false;
-  const readyTimer = setTimeout(() => el.classList.add('ready'), reduce ? 0 : 2600);
+  let closed = false, readyTimer = null;
+  // ロゴ画像が読みこめてから演出スタート（読みこめなくても1.5秒で開始）
+  const go = () => {
+    if (el.classList.contains('go') || closed) return;
+    el.classList.add('go');
+    readyTimer = setTimeout(() => el.classList.add('ready'), reduce ? 0 : 2500);
+  };
+  const logo = document.getElementById('introLogoImg');
+  if (logo.complete && logo.naturalWidth) go();
+  else { logo.addEventListener('load', go); logo.addEventListener('error', go); }
+  setTimeout(go, 1500);
   const close = () => {
     if (closed) return; closed = true; clearTimeout(readyTimer);
     unlockAudio(); beep('win');

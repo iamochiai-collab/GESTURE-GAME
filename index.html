@@ -6,7 +6,20 @@
 <title>ジェスチャーパーティー</title>
 <meta name="description" content="みんなのスマホで遊べるジェスチャーゲーム">
 <meta name="theme-color" content="#ff5c8a">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🙆</text></svg>">
+<!-- アイコン -->
+<link rel="icon" type="image/png" href="img/favicon-64.png">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<!-- LINEなどで共有したときの表示 -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="ジェスチャーパーティー">
+<meta property="og:description" content="体だけで伝えて、みんなで当てよう！みんなのスマホで遊べるジェスチャーゲーム">
+<meta property="og:url" content="https://iamochiai-collab.github.io/GESTURE-GAME/">
+<meta property="og:image" content="https://iamochiai-collab.github.io/GESTURE-GAME/img/ogp.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preload" as="image" href="img/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&display=swap" rel="stylesheet">
@@ -16,7 +29,7 @@
 <div id="intro" class="intro" hidden role="button" tabindex="0" aria-label="ジェスチャーパーティー　タップしてはじめる">
   <div class="intro-rays"></div>
   <div class="intro-stage">
-    <div class="intro-logo" id="introLogo"></div>
+    <div class="intro-logo"><img id="introLogoImg" src="img/logo.png" alt="ジェスチャーパーティー" width="1100" height="560"></div>
     <p class="intro-sub">体だけで伝えて、みんなで当てよう！</p>
   </div>
   <div class="intro-emojis" id="introEmojis"></div>
