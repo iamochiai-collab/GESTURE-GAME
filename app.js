@@ -8,7 +8,13 @@
 // ===================== 設定 =====================
 const MAX_PLAYERS = 10;
 const ROOM_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const EMOJIS = ['🐶','🐱','🐼','🦊','🐸','🐵','🐯','🐰','🐻','🐨','🐷','🐮','🐔','🐧','🦁','🐙','🦄','🐳','🦖','🐝'];
+// プレイヤーの顔アイコン（img/av/av-01.png 〜 av-32.png）
+const AVATARS = Array.from({ length:32 }, (_, i) => 'av' + String(i + 1).padStart(2, '0'));
+const isAvatar = v => /^av\d\d$/.test(v || '');
+// 顔アイコンを表示（古い部屋の絵文字にも対応）
+const avHTML = (v, cls = '') => isAvatar(v)
+  ? `<img class="av ${cls}" src="img/av/av-${v.slice(2)}.png" alt="">`
+  : `<span class="av-emoji ${cls}">${esc(v || '🙂')}</span>`;
 const TEAM = { red:{ name:'あかチーム' }, blue:{ name:'あおチーム' } };
 const GENRES = window.GENRES || [];
 const DEFAULT_SETTINGS = {
@@ -254,9 +260,9 @@ async function uniqueRoomId(){
   return rid(6, ROOM_CHARS);
 }
 function pickEmoji(ps){
-  const used = new Set(vals(ps).map(p => p.emoji));
-  const free = EMOJIS.filter(e => !used.has(e));
-  return shuffle(free.length ? free : EMOJIS)[0];
+  const used = new Set(vals(ps).filter(p => p.name && p.online).map(p => p.emoji));
+  const free = AVATARS.filter(e => !used.has(e));
+  return shuffle(free.length ? free : AVATARS)[0];
 }
 function smallerTeam(ps){
   const list = vals(ps).filter(p => p.name && p.online);
@@ -292,7 +298,7 @@ async function joinRoom(id, name){
   S.pid = pid;
   await S.db.update(`rooms/${id}/players/${pid}`, {
     name,
-    emoji: existing ? existing.emoji : pickEmoji(ps),
+    emoji: existing && isAvatar(existing.emoji) ? existing.emoji : pickEmoji(ps),
     team: existing ? existing.team : smallerTeam(ps),
     score: existing ? (existing.score || 0) : 0,
     online: true,
@@ -667,7 +673,7 @@ function fill(key){
     case 'ready': {
       const a = g.actorId, actorHere = !!(P()[a] && P()[a].name), actorOn = actorHere && P()[a].online;
       setHTML('turnNo', `ターン ${(g.turn || 0) + 1} / ${(g.order || []).length}`);
-      setHTML('readyInfo', `<div class="big-emoji">${pEmoji(a)}</div><div class="turn-name">${esc(pName(a))} さんの番！</div>
+      setHTML('readyInfo', `<div class="big-emoji">${avHTML(pEmoji(a), 'av-big')}</div><div class="turn-name">${esc(pName(a))} さんの番！</div>
         ${c.battle === 'team' ? teamBadge(g.actorTeam) : ''}<div class="rule-text">${ruleText(c)}</div>`);
       if (a === S.pid){
         setHTML('readyAction', `<div class="note">🤫 お題はあなたの画面にだけ出ます。<br>まわりの人に見えないようにしてね！</div>
@@ -696,7 +702,7 @@ function fill(key){
     case 'play-guess':
     case 'play-watch': {
       fillCounter(g, c);
-      setHTML('actorBanner', `${pEmoji(g.actorId)} <b>${esc(pName(g.actorId))}</b> さんが演じています ${c.battle === 'team' ? teamBadge(g.actorTeam) : ''}`);
+      setHTML('actorBanner', `${avHTML(pEmoji(g.actorId))} <b>${esc(pName(g.actorId))}</b> さんが演じています ${c.battle === 'team' ? teamBadge(g.actorTeam) : ''}`);
       setHTML('feed', feedHTML(false));
       const a = P()[g.actorId];
       setHTML('hostTools', isHost() && !(a && a.online) ? `<button class="btn" data-action="forceEnd">この番を終わる（演じる人の通信が切れています）</button>` : '');
@@ -748,7 +754,7 @@ const ruleText = c => c.timeMode === 'limit' ? `${fmtJa(c.limitSec)}で何問当
 function chipHTML(p, clickable){
   const host = R().meta && R().meta.hostId === p.id;
   const cls = `pchip ${p.online ? '' : 'off'} ${p.id === S.pid ? 'me' : ''}`;
-  const inner = `${p.emoji || '🙂'} ${esc(p.name)}${host ? ' 👑' : ''}`;
+  const inner = `${avHTML(p.emoji)} ${esc(p.name)}${host ? ' 👑' : ''}`;
   return clickable ? `<button class="${cls}" data-action="team" data-id="${p.id}" title="タップでチームをかえる">${inner}</button>` : `<span class="${cls}">${inner}</span>`;
 }
 function playersHTML(s){
@@ -792,7 +798,7 @@ function actorButtonsHTML(g, c){
     if (c.battle === 'solo'){
       const gs = playerList().filter(p => canGuess(p.id));
       h += `<p class="who-label">✅ 正解！当てた人をタップ</p><div class="who-grid">${
-        gs.map(p => `<button class="btn green" data-action="correct" data-id="${p.id}">${p.emoji || ''} ${esc(p.name)}</button>`).join('')}</div>`;
+        gs.map(p => `<button class="btn green" data-action="correct" data-id="${p.id}">${avHTML(p.emoji)} ${esc(p.name)}</button>`).join('')}</div>`;
     } else {
       h += `<button class="btn huge green" data-action="correct">⭕ 正解！</button>`;
     }
@@ -804,7 +810,7 @@ function actorButtonsHTML(g, c){
 }
 function feedHTML(forActor){
   const items = [];
-  for (const x of vals(R().guesses)) items.push({ t:x.t || 0, html:`<div class="fi">${esc(x.emoji || '')} <b>${esc(x.name)}</b>：${esc(x.text)}</div>` });
+  for (const x of vals(R().guesses)) items.push({ t:x.t || 0, html:`<div class="fi">${avHTML(x.emoji)} <b>${esc(x.name)}</b>：${esc(x.text)}</div>` });
   for (const x of vals(R().log)){
     if (x.type === 'correct') items.push({ t:(x.t || 0) + 1, html:`<div class="fi ok">🎉 ${x.byName ? `<b>${esc(x.byName)}</b> さん ` : ''}正解！「${esc(x.word)}」</div>` });
     else items.push({ t:x.t || 0, html:`<div class="fi pass">⏭ パス${forActor ? `（${esc(x.word)}）` : ''}</div>` });
@@ -855,7 +861,7 @@ function rankHTML(list, scoreFn){
     const sc = scoreFn(p);
     if (sc !== prev){ pos = i + 1; prev = sc; }
     const medal = ['🥇','🥈','🥉'][pos - 1] || pos;
-    return `<div class="rank ${pos === 1 ? 'first' : ''}"><span class="pos">${medal}</span><span class="nm">${p.emoji || ''} ${esc(p.name)}</span><span class="sc">${sc}</span></div>`;
+    return `<div class="rank ${pos === 1 ? 'first' : ''}"><span class="pos">${medal}</span><span class="nm">${avHTML(p.emoji)} ${esc(p.name)}</span><span class="sc">${sc}</span></div>`;
   }).join('');
 }
 function scoreboardHTML(){

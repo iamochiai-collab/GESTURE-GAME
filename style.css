@@ -83,6 +83,16 @@ button.pchip{cursor:pointer}
 .time-pick{display:flex;align-items:center;gap:8px;font-weight:800;font-size:16px}
 .time-pick select{font:inherit;font-weight:800;font-size:20px;padding:8px 12px;border:2px solid var(--ink);border-radius:12px;background:var(--yellow);color:var(--ink);min-width:76px;text-align:center;cursor:pointer}
 .time-pick select:disabled{background:#f1f1f1;cursor:default;opacity:.7}
+/* プレイヤーの顔アイコン */
+.av{display:inline-block;width:1.7em;height:1.7em;object-fit:contain;vertical-align:middle;margin:-.3em 0}
+.pchip .av{width:30px;height:30px;margin:-5px 0 -5px -4px}
+.rank .av{width:30px;height:30px}
+.who-grid .av{width:30px;height:30px}
+.fi .av{width:26px;height:26px}
+.actor-banner .av{width:36px;height:36px}
+.av-big{width:120px;height:120px;margin:0}
+@media (min-width:760px){.av-big{width:150px;height:150px}}
+@media (orientation:landscape) and (max-height:520px) and (min-width:560px){.av-big{width:64px;height:64px}}
 .genre-label{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .mini-btn{border:2px solid var(--ink);background:#fff;border-radius:999px;padding:4px 12px;font:inherit;font-weight:800;font-size:12px;color:var(--ink);cursor:pointer;white-space:nowrap;touch-action:manipulation}
 .hard-tag{display:inline-block;font-size:10px;background:var(--ink);color:#fff;border-radius:6px;padding:1px 5px;margin-left:2px;vertical-align:middle}
