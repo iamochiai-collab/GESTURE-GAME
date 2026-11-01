@@ -162,6 +162,105 @@ button.pchip{cursor:pointer}
 @keyframes pulse{to{transform:scale(1.04)}}
 @keyframes wordin{0%{transform:scale(.85) rotate(-2deg)}60%{transform:scale(1.04)}100%{transform:none}}
 
+/* ---------- ズーム防止（ダブルタップ・入力時の拡大） ---------- */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{touch-action:manipulation;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+button,.btn,.pchip,.seg button,.icon-btn,select{touch-action:manipulation;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+input,select,textarea{font-size:max(16px,1em)}  /* 16px未満だとiPhoneが入力時に拡大する */
+
+/* ---------- レイアウト（基本：スマホ縦） ---------- */
+.layout{display:flex;flex-direction:column}
+.col{display:contents}
+.sticky-start{order:10}          /* スマホ縦ではスタートボタンをいちばん下に */
+body[data-screen=home] #app,body[data-screen=join] #app,body[data-screen=loading] #app{max-width:520px}
+
+/* ---------- タブレット・横向き（幅760px以上）：左右2列 ---------- */
+@media (min-width:760px){
+  #app{max-width:1060px;padding:20px 28px 48px}
+  .layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;align-items:start}
+  .layout-play{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr)}
+  .col{display:block}
+  .layout-lobby .col-a{position:sticky;top:20px}
+  .final-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:0 24px;align-items:start}
+  .final-actions{max-width:520px;margin:0 auto}
+  .logo{font-size:58px}
+  .timer{font-size:64px}
+  .timer small{font-size:14px}
+  .counter{font-size:15px}
+  .counter b{font-size:44px}
+  .word-card{padding:40px 20px}
+  .word{font-size:clamp(44px,6.5vw,84px)}
+  .feed{max-height:62vh}
+  .big-emoji{font-size:110px}
+  .turn-name{font-size:38px}
+  .result-head{font-size:40px}
+  .center-stage{padding:24px 0}
+  .who-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+  .word-card{min-height:44vh;display:flex;flex-direction:column;justify-content:center}
+  .word{font-size:clamp(48px,7.5vw,96px)}
+  .actor-banner{font-size:20px}
+}
+/* タブレット縦：プレイ中は1列で大きく */
+@media (min-width:760px) and (orientation:portrait){
+  .layout-play{display:flex;flex-direction:column;align-items:stretch;max-width:760px;margin:0 auto}
+  .layout-play .col{display:contents}
+  .word-card{min-height:36vh}
+  .timer{font-size:76px}
+  .counter b{font-size:52px}
+  .who-grid .btn{font-size:20px;padding:14px 8px}
+  .actor-btns .btn{font-size:22px}
+  .guess-form input{font-size:22px;padding:16px}
+  .guess-form .btn{font-size:20px;padding:16px 22px}
+  .feed{max-height:40vh}
+}
+
+/* ---------- スマホ横向き（高さが低い）：コンパクトに左右2列 ---------- */
+@media (orientation:landscape) and (max-height:520px){
+  #app{max-width:none;padding:8px max(16px,env(safe-area-inset-right)) 16px max(16px,env(safe-area-inset-left))}
+  body[data-screen=home] #app,body[data-screen=join] #app{max-width:560px}
+  .layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;align-items:start}
+  .col{display:block}
+  .layout-lobby .col-a{position:static}
+  .topbar{margin-bottom:8px}
+  .room-tag,.icon-btn{padding:3px 10px;font-size:12px}
+  .card{padding:12px;margin-bottom:10px;border-radius:16px}
+  .hero{padding:6px 0}
+  .logo{font-size:28px;text-shadow:2px 3px 0 var(--ink)}
+  .hero p{margin-top:6px}
+  .code{font-size:32px;margin:0 0 6px}
+  .play-head{margin-bottom:8px;gap:8px}
+  .timer{font-size:34px;border-radius:14px}
+  .counter{border-radius:14px;font-size:11px}
+  .counter b{font-size:24px}
+  .word-card{padding:10px;margin-bottom:8px;border-radius:18px}
+  .word{font-size:clamp(26px,9vh,46px);margin:2px 0}
+  .word-wait{padding:10px 0}
+  .actor-btns{margin-bottom:8px}
+  .who-grid{grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px}
+  .who-grid .btn{font-size:13px;padding:7px 4px}
+  .btn{padding:9px 12px;font-size:15px}
+  .btn.big{font-size:18px;padding:10px}
+  .btn.huge{font-size:22px;padding:12px}
+  .btn + .btn{margin-top:8px}
+  .feed{max-height:calc(100dvh - 210px);min-height:80px}
+  .feed-card h3{margin-bottom:6px}
+  .actor-banner{font-size:14px;margin-bottom:8px}
+  .note{padding:8px;font-size:13px;margin-bottom:8px}
+  .guess-form{margin-bottom:8px}
+  .guess-form input{padding:9px 12px}
+  .center-stage{padding:0 0 6px}
+  .big-emoji{font-size:52px}
+  .turn-name{font-size:22px;margin:2px 0 4px}
+  .rule-text{margin-top:4px}
+  .result-head{font-size:24px;margin:2px 0}
+  .final-title{font-size:24px}
+  .final-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:0 14px;align-items:start}
+  .final-actions{max-width:520px;margin:0 auto}
+  .countdown{font-size:100px}
+  .rank{padding:6px 10px;margin-bottom:4px}
+}
+
 @media (prefers-reduced-motion: reduce){
   *{animation:none !important;transition:none !important}
 }

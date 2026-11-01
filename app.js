@@ -557,6 +557,7 @@ function render(){
   const key = screenKey();
   if (key !== S.screenKey){
     S.screenKey = key;
+    document.body.dataset.screen = key;
     app.innerHTML = skeleton(key);
     window.scrollTo(0, 0);
     const inp = document.getElementById('guessInput');
@@ -594,24 +595,24 @@ function skeleton(key){
       <div class="card"><h2>部屋 <span style="letter-spacing:.1em">${esc(S.pendingRoom || S.roomId)}</span> にさんか</h2>${nameForm('入る')}
       <button class="link-btn" type="button" data-action="home">新しく部屋をつくる</button></div>`;
     case 'loading': return `<div class="loading">つないでいます…</div>`;
-    case 'lobby': return `${topbar()}
+    case 'lobby': return `${topbar()}${two(`
       <div class="card"><div class="small" style="text-align:center">この部屋のURLをみんなに送ってね</div>
         <div class="code">${esc(S.roomId)}</div>
         <div class="share"><button class="btn yellow" data-action="copy">URLコピー</button><button class="btn yellow" data-action="share">送る</button><button class="btn yellow" data-action="qr">QR</button></div>
         <div id="qr" class="qr" hidden></div></div>
       <div class="card"><h2>あそぶ人 <span id="pcount" class="small"></span></h2><div id="players"></div></div>
-      <div class="card"><h2>ルール <span id="hostNote" class="small"></span></h2><div id="settings"></div></div>
-      <div id="startArea"></div>`;
-    case 'ready': return `${topbar()}
+      <div id="startArea" class="sticky-start"></div>`, `
+      <div class="card"><h2>ルール <span id="hostNote" class="small"></span></h2><div id="settings"></div></div>`, 'lobby')}`;
+    case 'ready': return `${topbar()}${two(`
       <div class="center-stage"><div class="small" id="turnNo"></div><div id="readyInfo"></div></div>
-      <div id="readyAction"></div>
-      <div class="card"><h3>スコア</h3><div id="scoreboard"></div></div>`;
-    case 'play-actor': return `${topbar()}
-      <div class="play-head"><div class="timer"><span id="timerNum">-</span><small id="timerUnit"></small></div><div class="counter" id="counter"></div></div>
+      <div id="readyAction"></div>`, `
+      <div class="card"><h3>スコア</h3><div id="scoreboard"></div></div>`, 'ready')}`;
+    case 'play-actor': return `${topbar()}${two(`
+      ${playHead()}
       <div class="word-card hide"><div class="word-genre" id="wordGenre"></div><div class="word" id="word"></div>
-        <div class="word-hint">声を出さずに体で表現しよう！</div><div class="word-wait">じゅんび…</div></div>
+        <div class="word-hint">声を出さずに体で表現しよう！</div><div class="word-wait">じゅんび…</div></div>`, `
       <div class="actor-btns" id="actorButtons"></div>
-      <div class="card"><h3>みんなの回答</h3><div class="feed" id="feed"></div></div>`;
+      <div class="card feed-card"><h3>みんなの回答</h3><div class="feed" id="feed"></div></div>`, 'play')}`;
     case 'play-guess':
     case 'play-watch': {
       const c = G().cfg || DEFAULT_SETTINGS;
@@ -620,24 +621,27 @@ function skeleton(key){
       else if (c.answer === 'voice') input = `<div class="note">🗣️ 声で答えよう！<br>正解すると演じる人がボタンをおします</div>`;
       else input = `<form id="guessForm" class="guess-form" autocomplete="off"><input type="text" id="guessInput" maxlength="30" placeholder="答えを入力（ひらがなOK）" enterkeyhint="send"><button class="btn primary" type="submit">送信</button></form>
         ${c.answer === 'both' ? '<div class="small" style="text-align:center;margin:-6px 0 12px">声で答えてもOK！</div>' : ''}`;
-      return `${topbar()}
-      <div class="play-head"><div class="timer"><span id="timerNum">-</span><small id="timerUnit"></small></div><div class="counter" id="counter"></div></div>
+      return `${topbar()}${two(`
+      ${playHead()}
       <div class="actor-banner" id="actorBanner"></div>
-      ${input}
-      <div class="card"><h3>回答</h3><div class="feed" id="feed"></div></div>
-      <div id="hostTools"></div>`;
+      ${input}`, `
+      <div class="card feed-card"><h3>回答</h3><div class="feed" id="feed"></div></div>
+      <div id="hostTools"></div>`, 'play')}`;
     }
-    case 'turnEnd': return `${topbar()}
+    case 'turnEnd': return `${topbar()}${two(`
       <div class="center-stage" id="turnResultHead"></div>
-      <div class="card"><h3>このターンのお題</h3><div id="turnWords"></div></div>
+      <div class="card"><h3>このターンのお題</h3><div id="turnWords"></div></div>`, `
       <div class="card"><h3>スコア</h3><div id="scoreboard"></div></div>
-      <div id="nextArea"></div>`;
+      <div id="nextArea"></div>`, 'turnend')}`;
     case 'final': return `${topbar()}
       <div class="center-stage"><div class="final-title">🏆 けっかはっぴょう 🏆</div></div>
-      <div id="finalArea"></div><div id="finalActions"></div>`;
+      <div id="finalArea" class="final-grid"></div><div id="finalActions" class="final-actions"></div>`;
   }
   return '';
 }
+// 2列レイアウト（スマホ縦では上下に並び、タブレットや横向きでは左右に並ぶ）
+const two = (a, b, cls) => `<div class="layout layout-${cls}"><div class="col col-a">${a}</div><div class="col col-b">${b}</div></div>`;
+const playHead = () => `<div class="play-head"><div class="timer"><span id="timerNum">-</span><small id="timerUnit"></small></div><div class="counter" id="counter"></div></div>`;
 
 function fill(key){
   const g = G(), c = g.cfg || settings();
