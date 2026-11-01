@@ -13,7 +13,7 @@ const TEAM = { red:{ name:'あかチーム' }, blue:{ name:'あおチーム' } }
 const GENRES = window.GENRES || [];
 const DEFAULT_SETTINGS = {
   battle:'solo', answer:'both', timeMode:'limit', limitSec:60, target:5, targetMax:180, turnsEach:1,
-  genres: Object.fromEntries(GENRES.map(g => [g.id, true]))
+  genres: Object.fromEntries(GENRES.map(g => [g.id, !g.hard]))
 };
 const SETTING_ROWS = [
   { key:'battle', label:'対戦', opts:[['solo','個人戦'],['team','チーム戦']],
@@ -772,8 +772,11 @@ function settingsHTML(s, editable){
       row.opts.map(([v, l]) => `<button data-action="set" data-key="${row.key}" data-val="${v}" class="${s[row.key] === v ? 'on' : ''}" ${editable ? '' : 'disabled'}>${l}</button>`).join('')
     }</div>${row.help ? `<div class="seg-help">${row.help(s)}</div>` : ''}</div>`;
   }
-  h += `<div class="set-row"><div class="set-label">お題のジャンル</div><div class="seg">${
-    GENRES.map(x => `<button data-action="genre" data-id="${x.id}" class="${s.genres && s.genres[x.id] ? 'on' : ''}" ${editable ? '' : 'disabled'}>${x.icon} ${x.name}</button>`).join('')
+  const onIds = GENRES.filter(x => s.genres && s.genres[x.id]);
+  const words = onIds.reduce((n, x) => n + x.words.length, 0);
+  h += `<div class="set-row"><div class="set-label genre-label"><span>お題のジャンル <span class="small" style="white-space:nowrap">（${words}語）</span></span>${
+    editable ? `<button class="mini-btn" data-action="genreAll">${onIds.length === GENRES.length ? 'ふつうだけ' : 'ぜんぶえらぶ'}</button>` : ''}</div><div class="seg">${
+    GENRES.map(x => `<button data-action="genre" data-id="${x.id}" class="${s.genres && s.genres[x.id] ? 'on' : ''}" ${editable ? '' : 'disabled'}>${x.icon} ${x.name}${x.hard ? ' <span class="hard-tag">むずかしい</span>' : ''}</button>`).join('')
   }</div></div>`;
   return h;
 }
@@ -902,6 +905,12 @@ async function onClick(e){
       const count = GENRES.filter(x => s.genres && s.genres[x.id]).length;
       if (!on && count <= 1){ toast('ジャンルは1つ以上えらんでね'); return; }
       upd({ [`settings/genres/${id}`]:on }); break;
+    }
+    case 'genreAll': {
+      // ぜんぶえらぶ ⇔ ふつうだけ（むずかしいジャンル以外）
+      if (!isHost()) return;
+      const s = settings(), all = GENRES.every(x => s.genres && s.genres[x.id]);
+      upd({ 'settings/genres': Object.fromEntries(GENRES.map(x => [x.id, all ? !x.hard : true])) }); break;
     }
     case 'team': {
       const id = el.dataset.id; if (!(isHost() || id === S.pid) || G().phase !== 'lobby') return;
