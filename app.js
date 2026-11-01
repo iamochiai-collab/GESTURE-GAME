@@ -22,7 +22,7 @@ const SETTING_ROWS = [
     help:s => ({ type:'自分のスマホに答えを入力 → 自動で判定。', voice:'口で答えて、演じる人が「正解」ボタンをおす。', both:'入力でも声でもOK。' })[s.answer] },
   { key:'timeMode', label:'タイムアタック', opts:[['limit','時間内に何問？'],['target','何問を何秒で？']],
     help:s => s.timeMode === 'limit' ? '制限時間内に当ててもらえた数をきそう。' : '決めた数を当ててもらうまでのタイムをきそう（最大3分）。' },
-  { key:'limitSec', label:'制限時間', show:s => s.timeMode === 'limit', opts:[[30,'30秒'],[60,'60秒'],[90,'90秒'],[120,'120秒']] },
+  { key:'limitSec', label:'制限時間', show:s => s.timeMode === 'limit', time:true },
   { key:'target', label:'目標', show:s => s.timeMode === 'target', opts:[[3,'3問'],[5,'5問'],[10,'10問']] },
   { key:'turnsEach', label:'1人が演じる回数', opts:[[1,'1回'],[2,'2回'],[3,'3回']] },
 ];
@@ -61,6 +61,11 @@ function norm(s){
     .replace(/[\s　・･、。,.!?！？「」『』ー\-~〜"'`]/g, '');
 }
 const fmtSec = x => (Math.round((x || 0) * 10) / 10).toFixed(1);
+// 制限時間は 1分〜10分、10秒きざみ
+const TIME_MIN = 60, TIME_MAX = 600;
+const clampLimit = v => Math.min(TIME_MAX, Math.max(TIME_MIN, Math.round((Number(v) || 60) / 10) * 10));
+const fmtClock = sec => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+const fmtJa = sec => { const m = Math.floor(sec / 60), s = sec % 60; return `${m}分${s ? s + '秒' : ''}`; };
 function toast(msg){
   const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show');
   clearTimeout(S.toastTimer); S.toastTimer = setTimeout(() => t.classList.remove('show'), 2400);
@@ -388,6 +393,7 @@ function buildOrder(ps, c){
 function startGame(){
   if (!isHost() || startError()) return;
   const c = JSON.parse(JSON.stringify(settings()));
+  c.limitSec = clampLimit(c.limitSec);
   const ps = onlinePlayers();
   const order = buildOrder(ps, c);
   const game = { phase:'ready', cfg:c, order, turn:0, actorId:order[0], correct:0, pass:0,
@@ -501,7 +507,7 @@ function tick(){
       let txt, warn = false;
       if (c.timeMode === 'limit'){
         const rem = pre ? c.limitSec : Math.max(0, Math.ceil((g.endAt - now) / 1000));
-        txt = rem; warn = !pre && rem <= 5;
+        txt = fmtClock(rem); warn = !pre && rem <= 5;
         if (warn && rem > 0 && S.lastWarn !== rem){ S.lastWarn = rem; beep('warn'); }
       } else {
         const el = pre ? 0 : Math.min((now - g.startAt) / 1000, c.targetMax);
@@ -711,14 +717,23 @@ function fill(key){
   }
 }
 
+// 制限時間のプルダウン
+function onChange(e){
+  const el = e.target; if (!el.dataset || !el.dataset.tpart || !isHost()) return;
+  const box = el.closest('.time-pick');
+  const m = Number(box.querySelector('[data-tpart=m]').value);
+  const s = m === 10 ? 0 : Number(box.querySelector('[data-tpart=s]').value);
+  upd({ 'settings/limitSec': clampLimit(m * 60 + s) });
+}
+
 function fillCounter(g, c){
   setHTML('counter', c.timeMode === 'limit'
     ? `<span>正解</span><b>${g.correct || 0}</b><span>パス ${g.pass || 0}</span>`
     : `<span>正解</span><b>${g.correct || 0}/${c.target}</b><span>パス ${g.pass || 0}</span>`);
-  setHTML('timerUnit', c.timeMode === 'limit' ? 'のこり秒' : `秒（最大${c.targetMax}秒）`);
+  setHTML('timerUnit', c.timeMode === 'limit' ? 'のこり時間' : `秒（最大${c.targetMax}秒）`);
 }
 const teamBadge = t => t ? `<span class="badge ${t}">${TEAM[t].name}</span>` : '';
-const ruleText = c => c.timeMode === 'limit' ? `${c.limitSec}秒で何問当ててもらえるかな？` : `${c.target}問当ててもらうまでのタイムは？`;
+const ruleText = c => c.timeMode === 'limit' ? `${fmtJa(c.limitSec)}で何問当ててもらえるかな？` : `${c.target}問当ててもらうまでのタイムは？`;
 
 function chipHTML(p, clickable){
   const host = R().meta && R().meta.hostId === p.id;
@@ -739,6 +754,16 @@ function settingsHTML(s, editable){
   let h = '';
   for (const row of SETTING_ROWS){
     if (row.show && !row.show(s)) continue;
+    if (row.time){
+      const v = clampLimit(s[row.key]), m = Math.floor(v / 60), sec = v % 60, dis = editable ? '' : 'disabled';
+      const mOpts = Array.from({ length:10 }, (_, i) => i + 1).map(x => `<option value="${x}" ${x === m ? 'selected' : ''}>${x}</option>`).join('');
+      const sOpts = [0, 10, 20, 30, 40, 50].map(x => `<option value="${x}" ${x === sec ? 'selected' : ''}>${String(x).padStart(2, '0')}</option>`).join('');
+      h += `<div class="set-row"><div class="set-label">${row.label}</div><div class="time-pick">
+        <select data-tpart="m" aria-label="分" ${dis}>${mOpts}</select><span>分</span>
+        <select data-tpart="s" aria-label="秒" ${dis || (m === 10 ? 'disabled' : '')}>${sOpts}</select><span>秒</span></div>
+        <div class="seg-help">1分〜10分のあいだで、10秒ごとに決められます</div></div>`;
+      continue;
+    }
     h += `<div class="set-row"><div class="set-label">${row.label}</div><div class="seg">${
       row.opts.map(([v, l]) => `<button data-action="set" data-key="${row.key}" data-val="${v}" class="${s[row.key] === v ? 'on' : ''}" ${editable ? '' : 'disabled'}>${l}</button>`).join('')
     }</div>${row.help ? `<div class="seg-help">${row.help(s)}</div>` : ''}</div>`;
@@ -840,7 +865,7 @@ function finalHTML(g, c){
         rankHTML(recs, r => r.cleared ? `${fmtSec(r.sec)}<small>秒</small>` : `${r.correct}<small>問</small>`)}</div>`;
     } else {
       recs.sort((a, b) => b.correct - a.correct);
-      h += `<div class="card"><div class="section-title">🎭 演技ランキング（${c.limitSec}秒）</div>${
+      h += `<div class="card"><div class="section-title">🎭 演技ランキング（${fmtJa(c.limitSec)}）</div>${
         rankHTML(recs, r => `${r.correct}<small>問</small>`)}</div>`;
     }
   }
@@ -946,6 +971,7 @@ async function main(){
   S.sound = store.get('gesture-sound') !== 'off';
   document.addEventListener('click', onClick);
   document.addEventListener('submit', onSubmit);
+  document.addEventListener('change', onChange);
   await initDB();
   setInterval(tick, 100);
   const r = (new URLSearchParams(location.search).get('r') || '').toUpperCase().replace(/[^A-Z0-9]/g, '');

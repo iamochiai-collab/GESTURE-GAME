@@ -80,6 +80,9 @@ button.pchip{cursor:pointer}
 .seg button.on{background:var(--yellow);box-shadow:inset 0 -3px 0 rgba(0,0,0,.12)}
 .seg button:disabled{cursor:default}
 .seg button:disabled:not(.on){opacity:.45}
+.time-pick{display:flex;align-items:center;gap:8px;font-weight:800;font-size:16px}
+.time-pick select{font:inherit;font-weight:800;font-size:20px;padding:8px 12px;border:2px solid var(--ink);border-radius:12px;background:var(--yellow);color:var(--ink);min-width:76px;text-align:center;cursor:pointer}
+.time-pick select:disabled{background:#f1f1f1;cursor:default;opacity:.7}
 .seg-help{font-size:12px;color:var(--sub);margin-top:6px;line-height:1.5}
 
 /* ---------- 順番・結果 ---------- */
