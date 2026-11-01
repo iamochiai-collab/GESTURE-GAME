@@ -12,14 +12,16 @@ const EMOJIS = ['🐶','🐱','🐼','🦊','🐸','🐵','🐯','🐰','🐻','
 const TEAM = { red:{ name:'あかチーム' }, blue:{ name:'あおチーム' } };
 const GENRES = window.GENRES || [];
 const DEFAULT_SETTINGS = {
-  battle:'solo', answer:'both', timeMode:'limit', limitSec:60, target:5, targetMax:180, turnsEach:1,
+  battle:'solo', answer:'voice', timeMode:'limit', limitSec:60, target:5, targetMax:180, turnsEach:1,
   genres: Object.fromEntries(GENRES.map(g => [g.id, !g.hard]))
 };
 const SETTING_ROWS = [
   { key:'battle', label:'対戦', opts:[['solo','個人戦'],['team','チーム戦']],
     help:s => s.battle === 'solo' ? '演じる人と当てた人に1点ずつ。' : '同じチームの人だけが答えられます。' },
-  { key:'answer', label:'答え方', opts:[['type','入力'],['voice','声'],['both','両方']],
-    help:s => ({ type:'自分のスマホに答えを入力 → 自動で判定。', voice:'口で答えて、演じる人が「正解」ボタンをおす。', both:'入力でも声でもOK。' })[s.answer] },
+  { key:'answer', label:'あそぶ場所', opts:[['voice','🏠 対面'],['type','📱 リモート']],
+    help:s => s.answer === 'type'
+      ? 'はなれた場所で遊ぶとき。ビデオ通話などで演技を見ながら、自分のスマホに答えを入力 → 自動で判定。'
+      : '同じ場所で遊ぶとき。口で答えて、演じる人が正解のボタンをおす。' },
   { key:'timeMode', label:'タイムアタック', opts:[['limit','時間内に何問？'],['target','何問を何秒で？']],
     help:s => s.timeMode === 'limit' ? '制限時間内に当ててもらえた数をきそう。' : '決めた数を当ててもらうまでのタイムをきそう（最大3分）。' },
   { key:'limitSec', label:'制限時間', show:s => s.timeMode === 'limit', time:true },
@@ -203,7 +205,11 @@ const G = () => R().game || { phase:'lobby' };
 const P = () => R().players || {};
 const me = () => { const p = P()[S.pid]; return p && p.name ? p : null; };
 const isHost = () => !!(R().meta && R().meta.hostId === S.pid);
-const settings = () => ({ ...DEFAULT_SETTINGS, ...(R().settings || {}) });
+const settings = () => {
+  const s = { ...DEFAULT_SETTINGS, ...(R().settings || {}) };
+  if (s.answer !== 'type') s.answer = 'voice';   // 以前の「両方」は「対面」としてあつかう
+  return s;
+};
 const playerList = () => Object.entries(P()).filter(([, p]) => p && p.name)
   .map(([id, p]) => ({ id, ...p })).sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0));
 const onlinePlayers = () => playerList().filter(p => p.online);
@@ -588,7 +594,7 @@ function skeleton(key){
         <li>部屋をつくって、URLをみんなに送る</li>
         <li>演じる人のスマホにだけお題が出る</li>
         <li>声を出さずにジェスチャーで伝える！</li>
-        <li>ほかの人は答えを入力するか、声で答える</li></ol></div>`;
+        <li>ほかの人は声で答える（リモートのときはスマホに入力）</li></ol></div>`;
     case 'join': return `
       <div class="hero"><img class="hero-logo sm" src="img/logo.png" alt="ジェスチャーパーティー" width="1100" height="560"></div>
       ${localBanner()}
