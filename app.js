@@ -985,13 +985,9 @@ function showIntro(){
   const el = document.getElementById('intro'); if (!el) return;
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   // ロゴのまわりに飛び出すキャラクター（画像, 位置x%, y%, 遅れms）
-  // 縦長画面：上・左右・下にちらす／横長画面：左右の列に並べる
+  // バナーに出ていない4人を、縦長画面のときだけ上下に置く（横長画面はバナーだけ）
   const wide = innerWidth > innerHeight;
-  const people = wide
-    ? [['maru',9,17,0],['batsu',91,17,110],['dance',8,50,220],['te',92,50,330],
-       ['kangaeru',9,83,440],['hakushu',91,83,550],['jump',25,86,660],['kashige',75,86,770]]
-    : [['maru',14,13,0],['batsu',50,9,110],['kashige',86,13,220],['dance',10,69,330],
-       ['te',90,69,440],['jump',50,77,550],['kangaeru',11,89,660],['hakushu',89,89,770]];
+  const people = wide ? [] : [['kashige',18,12,0],['dance',82,12,120],['kangaeru',16,76,240],['hakushu',84,76,360]];
   document.getElementById('introEmojis').innerHTML = people.map(([n, x, y, d]) =>
     `<img src="img/chara-${n}.png" alt="" style="left:${x}%;top:${y}%;--d:${d}ms">`).join('');
   el.hidden = false;
