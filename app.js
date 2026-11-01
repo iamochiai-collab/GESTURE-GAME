@@ -619,7 +619,7 @@ function skeleton(key){
       let input = '';
       if (key === 'play-watch') input = `<div class="note">👀 相手チームの番です。<br>見て楽しもう！（答えは言わないでね）</div>`;
       else if (c.answer === 'voice') input = `<div class="note">🗣️ 声で答えよう！<br>正解すると演じる人がボタンをおします</div>`;
-      else input = `<form id="guessForm" class="guess-form" autocomplete="off"><input type="text" id="guessInput" maxlength="30" placeholder="答えを入力（ひらがなOK）" enterkeyhint="send"><button class="btn primary" type="submit">送信</button></form>
+      else input = `<form id="guessForm" class="guess-form" autocomplete="off"><input type="text" id="guessInput" maxlength="30" placeholder="答えを入力" enterkeyhint="send"><button class="btn primary" type="submit">送信</button></form>
         ${c.answer === 'both' ? '<div class="small" style="text-align:center;margin:-6px 0 12px">声で答えてもOK！</div>' : ''}`;
       return `${topbar()}${two(`
       ${playHead()}
