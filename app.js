@@ -971,8 +971,47 @@ function toggleQr(){
 }
 
 // ===================== スタート =====================
+// ===================== オープニング =====================
+function showIntro(){
+  const el = document.getElementById('intro'); if (!el) return;
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const cols = ['#ff5c8a','#ff9f1c','#ffd23f','#2ec4b6','#3a86ff','#8338ec'];
+  let i = 0;
+  const line = t => `<div class="intro-line">${[...t].map(ch =>
+    `<span style="--i:${i};color:${cols[i++ % cols.length]}">${esc(ch)}</span>`).join('')}</div>`;
+  document.getElementById('introLogo').innerHTML = line('ジェスチャー') + line('パーティー');
+  // ロゴのまわりに飛び出すジェスチャーの人たち（位置x%, y%, 遅れms）
+  const people = [['🙆',12,18,0],['🤷',84,16,120],['💃',8,72,240],['🕺',88,70,360],['🙋',10,87,480],['🤸',90,87,600],['🙅',50,10,720]];
+  document.getElementById('introEmojis').innerHTML = people.map(([e, x, y, d]) =>
+    `<span style="left:${x}%;top:${y}%;--d:${d}ms">${e}</span>`).join('');
+  el.hidden = false;
+  document.body.classList.add('intro-open');
+  let closed = false;
+  const readyTimer = setTimeout(() => el.classList.add('ready'), reduce ? 0 : 2600);
+  const close = () => {
+    if (closed) return; closed = true; clearTimeout(readyTimer);
+    unlockAudio(); beep('win');
+    el.classList.add('out');
+    document.body.classList.remove('intro-open');
+    setTimeout(() => { el.remove(); const n = document.getElementById('nameInput'); if (n && !matchMedia('(pointer:coarse)').matches) n.focus(); }, 550);
+  };
+  // 演出中にタップしたらスキップ、終わったあとのタップではじまる（どちらも閉じる）
+  el.addEventListener('pointerdown', e => { e.preventDefault(); close(); });
+  el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); close(); } });
+  el.focus({ preventScroll:true });
+}
+
 async function main(){
   S.sound = store.get('gesture-sound') !== 'off';
+  {
+    // 遊んでいる途中で再読み込みしたとき（部屋にもどるとき）はオープニングを出さない
+    const r0 = (new URLSearchParams(location.search).get('r') || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    let rejoin = false;
+    if (r0 && store.get('gesture-name')){
+      try { rejoin = !!(localStorage.getItem('gesture-pid-' + r0) || sessionStorage.getItem('gesture-pid-' + r0)); } catch(e){}
+    }
+    if (!rejoin) showIntro();
+  }
   document.addEventListener('click', onClick);
   document.addEventListener('submit', onSubmit);
   document.addEventListener('change', onChange);
