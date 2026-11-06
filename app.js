@@ -354,13 +354,22 @@ function onRoom(room){
   render();
 }
 
-// ホストがいなくなったら、いちばん先に入った人がホストになる
+// ホストは固定。ホストが「退出」したときだけ、いちばん先に入った人がホストになる
+// （通信が一時的に切れただけでは変わらない。もどってくればそのままホスト）
 function hostMigration(){
   const m = me(); if (!m || !m.online) return;
   const h = P()[R().meta && R().meta.hostId];
-  if (h && h.name && h.online) return;
+  if (h && h.name) return;
   const first = onlinePlayers()[0];
   if (first && first.id === S.pid) upd({ 'meta/hostId':S.pid });
+}
+// ホストの通信が切れたまま戻らないとき、ほかの人が手動で引きつげる
+const hostOffline = () => { const h = P()[R().meta && R().meta.hostId]; return !!(h && h.name && !h.online); };
+function hostLostHTML(){
+  if (isHost() || !hostOffline() || !me()) return '';
+  const h = P()[R().meta.hostId];
+  return `<div class="host-lost">👑 ホストの ${avHTML(h.emoji)} <b>${esc(h.name)}</b> さんの通信が切れています
+    <button class="mini-btn" data-action="takeHost">ホストを引きつぐ</button></div>`;
 }
 
 // 音や演出（状態の変化を見て鳴らす）
@@ -582,7 +591,7 @@ function setHTML(id, html){
   if (el && el._h !== html){ el._h = html; el.innerHTML = html; }
 }
 
-const topbar = () => `<div class="topbar"><div class="room-tag">部屋 <b>${esc(S.roomId)}</b></div>
+const topbar = () => `<div id="hostLost"></div><div class="topbar"><div class="room-tag">部屋 <b>${esc(S.roomId)}</b></div>
   <div><button class="icon-btn" data-action="sound" id="soundBtn">${S.sound ? '🔊' : '🔇'}</button><button class="icon-btn" data-action="leave">退出</button></div></div>`;
 const localBanner = () => S.local ? `<div class="banner">🧪 <b>デモモード</b>：Firebaseが未設定なので、<b>同じブラウザの別タブ同士</b>でだけ遊べます。READMEの手順で設定すると、みんなのスマホで遊べます。</div>` : '';
 const nameForm = (btnLabel) => `<form id="nameForm" autocomplete="off">
@@ -657,6 +666,7 @@ const playHead = () => `<div class="play-head"><div class="timer"><span id="time
 
 function fill(key){
   const g = G(), c = g.cfg || settings();
+  setHTML('hostLost', hostLostHTML());
   switch (key){
     case 'lobby': {
       const s = settings(), host = isHost();
@@ -942,6 +952,9 @@ async function onClick(e){
     case 'forceEnd': endTurn(); break;
     case 'next': nextTurn(); break;
     case 'again': playAgain(); break;
+    case 'takeHost':
+      if (!hostOffline() || !me()) return;
+      upd({ 'meta/hostId':S.pid }); toast('あなたがホストになりました👑'); break;
   }
 }
 
