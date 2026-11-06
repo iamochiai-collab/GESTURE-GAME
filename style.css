@@ -95,6 +95,12 @@ button.pchip{cursor:pointer}
 @media (orientation:landscape) and (max-height:520px) and (min-width:560px){.av-big{width:64px;height:64px}}
 .host-lost{background:#fff3c4;border:2px solid var(--orange);border-radius:14px;padding:8px 10px;margin-bottom:10px;font-size:13px;font-weight:700;display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;line-height:1.5}
 .host-lost .mini-btn{margin-left:auto}
+.lv-tag{display:inline-block;font-size:12px;font-weight:800;color:#fff;border:2px solid var(--ink);border-radius:8px;padding:1px 8px;vertical-align:middle;letter-spacing:.05em}
+.lv-easy{background:var(--green)}.lv-normal{background:var(--blue)}.lv-hard{background:var(--red)}
+.seg button[data-key=level]{font-weight:800;letter-spacing:.05em}
+.seg button[data-key=level][data-val=easy].on{background:var(--green);color:#fff}
+.seg button[data-key=level][data-val=normal].on{background:var(--blue);color:#fff}
+.seg button[data-key=level][data-val=hard].on{background:var(--red);color:#fff}
 .genre-label{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .mini-btn{border:2px solid var(--ink);background:#fff;border-radius:999px;padding:4px 12px;font:inherit;font-weight:800;font-size:12px;color:var(--ink);cursor:pointer;white-space:nowrap;touch-action:manipulation}
 .hard-tag{display:inline-block;font-size:10px;background:var(--ink);color:#fff;border-radius:6px;padding:1px 5px;margin-left:2px;vertical-align:middle}

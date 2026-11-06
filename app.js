@@ -19,9 +19,15 @@ const TEAM = { red:{ name:'あかチーム' }, blue:{ name:'あおチーム' } }
 const GENRES = window.GENRES || [];
 const DEFAULT_SETTINGS = {
   battle:'solo', answer:'voice', timeMode:'limit', limitSec:60, target:5, targetMax:180, turnsEach:1,
-  genres: Object.fromEntries(GENRES.map(g => [g.id, !g.hard]))
+  level:'normal', genres: Object.fromEntries(GENRES.map(g => [g.id, true]))
 };
+const LEVELS = [['easy','EASY'],['normal','NORMAL'],['hard','HARD']];
+// ジャンルの、そのむずかしさのお題（古い形式の words にも対応）
+const wordsOf = (g, lv) => g[lv] || (lv === 'normal' ? (g.words || []) : []);
 const SETTING_ROWS = [
+  { key:'level', label:'むずかしさ', opts:LEVELS,
+    help:s => ({ easy:'かんたんなお題。小さい子とも遊べます（例：ゴリラ・野球・ピアノ）', normal:'ふつうのお題（例：ナマケモノ・柔道・三味線）',
+      hard:'むずかしいお題。大人向け（例：ハシビロコウ・棒高跳び・尺八）' })[s.level] || '' },
   { key:'battle', label:'対戦', opts:[['solo','個人戦'],['team','チーム戦']],
     help:s => s.battle === 'solo' ? '演じる人と当てた人に1点ずつ。' : '同じチームの人だけが答えられます。' },
   { key:'answer', label:'あそぶ場所', opts:[['voice','🏠 対面'],['type','📱 リモート']],
@@ -231,12 +237,13 @@ function canGuess(pid){
 function deckFor(g){
   const c = g.cfg || DEFAULT_SETTINGS;
   const ids = GENRES.filter(x => c.genres && c.genres[x.id]).map(x => x.id);
-  const key = g.seed + ':' + ids.join(',');
+  const lv = c.level || 'normal';
+  const key = g.seed + ':' + lv + ':' + ids.join(',');
   if (S.deckCache && S.deckCache.key === key) return S.deckCache.deck;
   const pool = [];
   for (const gen of GENRES){
     if (!ids.includes(gen.id)) continue;
-    for (const w of gen.words){
+    for (const w of wordsOf(gen, lv)){
       const ps = w.split('|');
       pool.push({ display:ps[0], answers:ps.map(norm).filter(Boolean), genre:gen.name, icon:gen.icon });
     }
@@ -395,6 +402,7 @@ function effects(prev){
 function startError(){
   const s = settings(), ps = onlinePlayers();
   if (!GENRES.some(x => s.genres && s.genres[x.id])) return 'ジャンルを1つ以上えらんでね';
+  if (!GENRES.some(x => s.genres && s.genres[x.id] && wordsOf(x, s.level).length)) return 'このむずかしさのお題がありません。ジャンルをふやしてね';
   if (s.battle === 'solo') return ps.length < 2 ? '2人以上で遊べます' : '';
   const r = ps.filter(p => p.team === 'red').length, b = ps.filter(p => p.team === 'blue').length;
   if (r < 2 || b < 2) return 'チーム戦は、それぞれのチームに2人以上必要です';
@@ -684,7 +692,7 @@ function fill(key){
       const a = g.actorId, actorHere = !!(P()[a] && P()[a].name), actorOn = actorHere && P()[a].online;
       setHTML('turnNo', `ターン ${(g.turn || 0) + 1} / ${(g.order || []).length}`);
       setHTML('readyInfo', `<div class="big-emoji">${avHTML(pEmoji(a), 'av-big')}</div><div class="turn-name">${esc(pName(a))} さんの番！</div>
-        ${c.battle === 'team' ? teamBadge(g.actorTeam) : ''}<div class="rule-text">${ruleText(c)}</div>`);
+        ${c.battle === 'team' ? teamBadge(g.actorTeam) : ''}<div class="rule-text"><span class="lv-tag lv-${c.level || 'normal'}">${(c.level || 'normal').toUpperCase()}</span> ${ruleText(c)}</div>`);
       if (a === S.pid){
         setHTML('readyAction', `<div class="note">🤫 お題はあなたの画面にだけ出ます。<br>まわりの人に見えないようにしてね！</div>
           <button class="btn huge primary" data-action="actorStart">スタート！</button>`);
@@ -795,10 +803,10 @@ function settingsHTML(s, editable){
     }</div>${row.help ? `<div class="seg-help">${row.help(s)}</div>` : ''}</div>`;
   }
   const onIds = GENRES.filter(x => s.genres && s.genres[x.id]);
-  const words = onIds.reduce((n, x) => n + x.words.length, 0);
+  const words = onIds.reduce((n, x) => n + wordsOf(x, s.level).length, 0);
   h += `<div class="set-row"><div class="set-label genre-label"><span>お題のジャンル <span class="small" style="white-space:nowrap">（${words}語）</span></span>${
-    editable ? `<button class="mini-btn" data-action="genreAll">${onIds.length === GENRES.length ? 'ふつうだけ' : 'ぜんぶえらぶ'}</button>` : ''}</div><div class="seg">${
-    GENRES.map(x => `<button data-action="genre" data-id="${x.id}" class="${s.genres && s.genres[x.id] ? 'on' : ''}" ${editable ? '' : 'disabled'}>${x.icon} ${x.name}${x.hard ? ' <span class="hard-tag">むずかしい</span>' : ''}</button>`).join('')
+    editable && onIds.length < GENRES.length ? `<button class="mini-btn" data-action="genreAll">ぜんぶえらぶ</button>` : ''}</div><div class="seg">${
+    GENRES.map(x => `<button data-action="genre" data-id="${x.id}" class="${s.genres && s.genres[x.id] ? 'on' : ''}" ${editable ? '' : 'disabled'}>${x.icon} ${x.name}${wordsOf(x, s.level).length ? '' : ' <span class="small">（なし）</span>'}</button>`).join('')
   }</div></div>`;
   return h;
 }
@@ -929,10 +937,8 @@ async function onClick(e){
       upd({ [`settings/genres/${id}`]:on }); break;
     }
     case 'genreAll': {
-      // ぜんぶえらぶ ⇔ ふつうだけ（むずかしいジャンル以外）
       if (!isHost()) return;
-      const s = settings(), all = GENRES.every(x => s.genres && s.genres[x.id]);
-      upd({ 'settings/genres': Object.fromEntries(GENRES.map(x => [x.id, all ? !x.hard : true])) }); break;
+      upd({ 'settings/genres': Object.fromEntries(GENRES.map(x => [x.id, true])) }); break;
     }
     case 'team': {
       const id = el.dataset.id; if (!(isHost() || id === S.pid) || G().phase !== 'lobby') return;
