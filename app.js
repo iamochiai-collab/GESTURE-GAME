@@ -30,7 +30,7 @@ const SETTING_ROWS = [
       hard:'むずかしいお題。大人向け（例：ハシビロコウ・棒高跳び・尺八）' })[s.level] || '' },
   { key:'battle', label:'対戦', opts:[['solo','個人戦'],['team','チーム戦']],
     help:s => s.battle === 'solo' ? '演じる人と当てた人に1点ずつ。' : '同じチームの人だけが答えられます。' },
-  { key:'answer', label:'あそぶ場所', opts:[['voice','🏠 対面'],['type','📱 リモート']],
+  { key:'answer', label:'あそぶ場所', show:() => !S.pass, opts:[['voice','🏠 対面'],['type','📱 リモート']],
     help:s => s.answer === 'type'
       ? 'はなれた場所で遊ぶとき。ビデオ通話などで演技を見ながら、自分のスマホに答えを入力 → 自動で判定。'
       : '同じ場所で遊ぶとき。口で答えて、演じる人が正解のボタンをおす。' },
@@ -152,6 +152,31 @@ async function firebaseDB(cfg){
 }
 
 // デモモード：localStorage を共有して、同じブラウザのタブ同士で同期
+// スマホまわしモード用：この端末のメモリの中だけで動くDB
+function memDB(){
+  let data = {};
+  const listeners = new Set();
+  const parts = p => p.split('/').filter(Boolean);
+  const getAt = p => { let o = data; for (const k of parts(p)){ if (o == null || typeof o !== 'object') return null; o = o[k]; } return o === undefined ? null : o; };
+  const setAt = (p, v) => {
+    const ks = parts(p); if (!ks.length){ data = v ?? {}; return; }
+    let o = data;
+    for (let i = 0; i < ks.length - 1; i++){ if (o[ks[i]] == null || typeof o[ks[i]] !== 'object') o[ks[i]] = {}; o = o[ks[i]]; }
+    const last = ks[ks.length - 1];
+    if (v === null || v === undefined) delete o[last]; else o[last] = JSON.parse(JSON.stringify(v));
+  };
+  let pending = false;
+  const notify = () => { if (pending) return; pending = true; queueMicrotask(() => { pending = false;
+    for (const l of listeners){ const s = JSON.stringify(getAt(l.p)); if (s !== l.last){ l.last = s; l.cb(JSON.parse(s)); } } }); };
+  return {
+    get: async p => JSON.parse(JSON.stringify(getAt(p))),
+    set: async (p, v) => { setAt(p, v); notify(); },
+    update: async (p, o) => { for (const [k, v] of Object.entries(o)) setAt(p + '/' + k, v); notify(); },
+    on(p, cb){ const l = { p, cb, last:undefined }; listeners.add(l); notify(); return () => listeners.delete(l); },
+    presence(){}, cancelPresence(){}, now: () => Date.now(),
+  };
+}
+
 function localDB(){
   const KEY = 'gesture-local-db-v1';
   const read = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch(e){ return {}; } };
@@ -216,7 +241,9 @@ const R = () => S.room || {};
 const G = () => R().game || { phase:'lobby' };
 const P = () => R().players || {};
 const me = () => { const p = P()[S.pid]; return p && p.name ? p : null; };
-const isHost = () => !!(R().meta && R().meta.hostId === S.pid);
+const isHost = () => S.pass || !!(R().meta && R().meta.hostId === S.pid);
+// 演じる人がこの端末にいるか（スマホまわしモードでは、いつもこの端末）
+const actorHere = () => S.pass || G().actorId === S.pid;
 const settings = () => {
   const s = { ...DEFAULT_SETTINGS, ...(R().settings || {}) };
   if (s.answer !== 'type') s.answer = 'voice';   // 以前の「両方」は「対面」としてあつかう
@@ -319,11 +346,11 @@ function enterRoom(id){
   if (S.roomId !== id){
     if (S.unsub) S.unsub();
     S.roomId = id; S.room = null;
-    history.replaceState(null, '', '?r=' + id);
+    if (!S.pass) history.replaceState(null, '', '?r=' + id);
     S.unsub = S.db.on(`rooms/${id}`, onRoom);
   }
   S.joined = true;
-  if (!S.presenceSet){
+  if (!S.presenceSet && !S.pass){
     S.presenceSet = true;
     S.db.presence(`rooms/${id}/players/${S.pid}`, () => S.joined && S.roomId === id);
   }
@@ -331,6 +358,10 @@ function enterRoom(id){
 }
 
 async function leave(){
+  if (S.pass){
+    if (G().phase === 'lobby' || G().phase === 'final' || confirm('ゲームをやめて、ホームにもどりますか？')) location.href = baseUrl();
+    return;
+  }
   if (!confirm('部屋を出ますか？')) return;
   const id = S.roomId, path = `rooms/${id}/players/${S.pid}`;
   S.joined = false;
@@ -361,9 +392,57 @@ function onRoom(room){
   render();
 }
 
+// ===================== スマホまわしモード =====================
+const PASS_NAMES_KEY = 'gesture-pass-names', PASS_SET_KEY = 'gesture-pass-settings';
+function openPassSetup(names){
+  let saved = null; try { saved = JSON.parse(store.get(PASS_NAMES_KEY) || 'null'); } catch(e){}
+  S.passNames = (names || saved || ['', '']).slice(0, MAX_PLAYERS);
+  while (S.passNames.length < 2) S.passNames.push('');
+  S.passSetup = true; render();
+}
+function passNameErr(){
+  const ns = S.passNames.map(n => n.trim()).filter(Boolean);
+  if (ns.length < 2) return '2人以上の名前を入れてね';
+  if (new Set(ns).size !== ns.length) return '同じ名前の人がいます。少し変えてね';
+  return '';
+}
+async function startPass(){
+  const err = passNameErr(); if (err){ toast(err); return; }
+  const names = S.passNames.map(n => n.trim().slice(0, 10)).filter(Boolean);
+  store.set(PASS_NAMES_KEY, JSON.stringify(names));
+  let prevSet = null; try { prevSet = JSON.parse(store.get(PASS_SET_KEY) || 'null'); } catch(e){}
+  // 前の部屋（スマホまわしの続き）があれば、チーム分けと顔を引きつぐ
+  const old = S.pass && S.room ? playerList() : [];
+  S.pass = true;
+  if (!S.memDB){ S.memDB = memDB(); }
+  S.db = S.memDB;
+  if (S.unsub){ S.unsub(); S.unsub = null; }
+  S.roomId = null; S.room = null; S.screenKey = '';
+  const id = 'PASS', now = Date.now(), players = {};
+  names.forEach((n, i) => {
+    const o = old.find(p => p.name === n);
+    players['p' + i] = { name:n, emoji: o ? o.emoji : pickEmoji(players), team: o ? o.team : (i % 2 ? 'blue' : 'red'),
+      score:0, online:true, joinedAt:now + i };
+  });
+  const st = { ...DEFAULT_SETTINGS, ...(prevSet || {}), answer:'voice' };
+  await S.db.set(`rooms/${id}`, { meta:{ hostId:'p0', createdAt:now }, settings:st, game:{ phase:'lobby' }, players });
+  S.pid = 'p0'; S.passSetup = false;
+  enterRoom(id);
+}
+function passEdit(){
+  const names = playerList().map(p => p.name);
+  if (S.unsub){ S.unsub(); S.unsub = null; }
+  S.roomId = null; S.room = null; S.screenKey = '';
+  openPassSetup(names);
+}
+const passSetupHTML = () => S.passNames.map((n, i) => `<div class="pass-row"><span class="pass-no">${i + 1}</span>
+  <input type="text" data-pass="${i}" maxlength="10" placeholder="なまえ" value="${esc(n)}" autocomplete="off">
+  ${S.passNames.length > 2 ? `<button class="pass-del" data-action="passDel" data-i="${i}" aria-label="けす">✕</button>` : ''}</div>`).join('');
+
 // ホストは固定。ホストが「退出」したときだけ、いちばん先に入った人がホストになる
 // （通信が一時的に切れただけでは変わらない。もどってくればそのままホスト）
 function hostMigration(){
+  if (S.pass) return;
   const m = me(); if (!m || !m.online) return;
   const h = P()[R().meta && R().meta.hostId];
   if (h && h.name) return;
@@ -423,6 +502,7 @@ function startGame(){
   if (!isHost() || startError()) return;
   const c = JSON.parse(JSON.stringify(settings()));
   c.limitSec = clampLimit(c.limitSec);
+  if (S.pass) store.set(PASS_SET_KEY, JSON.stringify({ ...c, genres:c.genres }));
   const ps = onlinePlayers();
   const order = buildOrder(ps, c);
   const game = { phase:'ready', cfg:c, order, turn:0, actorId:order[0], correct:0, pass:0,
@@ -433,7 +513,7 @@ function startGame(){
   upd(u);
 }
 function actorStart(){
-  const g = G(); if (g.phase !== 'ready' || g.actorId !== S.pid) return;
+  const g = G(); if (g.phase !== 'ready' || !actorHere()) return;
   S.processed.clear(); S.ending = null;
   const startAt = S.db.now() + 3500;
   upd({ 'game/phase':'playing', 'game/startAt':startAt,
@@ -456,7 +536,7 @@ function endTurn(){
   upd(endTurnFields(g, g.correct || 0, S.db.now()));
 }
 function markCorrect(by){
-  const g = G(); if (g.phase !== 'playing' || g.actorId !== S.pid) return;
+  const g = G(); if (g.phase !== 'playing' || !actorHere()) return;
   const now = S.db.now(); if (now < g.startAt) return;
   const k = `${g.seed}:${g.wordNo}`; if (S.busyWord === k) return;
   const w = currentWord(); if (!w) return;
@@ -465,7 +545,7 @@ function markCorrect(by){
   const u = { 'game/correct':correct, 'game/wordNo':(g.wordNo || 0) + 1, 'game/deckPos':(g.deckPos || 0) + 1 };
   u[`log/${newKey()}`] = { type:'correct', word:w.display, by:by || null, byName: by && ps[by] ? ps[by].name : null, t:now };
   if (by && ps[by]) u[`players/${by}/score`] = (ps[by].score || 0) + 1;
-  if (ps[S.pid]) u[`players/${S.pid}/score`] = (ps[S.pid].score || 0) + 1;
+  if (ps[g.actorId]) u[`players/${g.actorId}/score`] = (ps[g.actorId].score || 0) + 1;
   if (c.battle === 'team'){ const tm = g.actorTeam; u[`game/teamScores/${tm}`] = ((g.teamScores || {})[tm] || 0) + 1; }
   if (c.timeMode === 'target' && correct >= c.target){
     Object.assign(u, endTurnFields(g, correct, now)); S.ending = `${g.seed}:${g.turn}`;
@@ -473,7 +553,7 @@ function markCorrect(by){
   upd(u);
 }
 function doPass(){
-  const g = G(); if (g.phase !== 'playing' || g.actorId !== S.pid) return;
+  const g = G(); if (g.phase !== 'playing' || !actorHere()) return;
   const now = S.db.now(); if (now < g.startAt) return;
   const k = `${g.seed}:${g.wordNo}`; if (S.busyWord === k) return; S.busyWord = k;
   const w = currentWord();
@@ -550,9 +630,9 @@ function tick(){
 
     if (!pre){
       const over = c.timeMode === 'limit' ? now >= g.endAt : now - g.startAt >= c.targetMax * 1000;
-      if (g.actorId === S.pid && over) endTurn();
+      if (actorHere() && over) endTurn();
       // 演じる人の通信が切れても止まらないように、ホストが少し待ってから終了させる
-      if (isHost() && g.actorId !== S.pid){
+      if (isHost() && !actorHere()){
         const late = c.timeMode === 'limit' ? now >= g.endAt + 3000 : now - g.startAt >= c.targetMax * 1000 + 3000;
         if (late) endTurn();
       }
@@ -569,13 +649,13 @@ function tick(){
 
 // ===================== 画面 =====================
 function screenKey(){
-  if (!S.roomId) return S.pendingRoom ? 'join' : 'home';
+  if (!S.roomId) return S.passSetup ? 'pass-setup' : (S.pendingRoom ? 'join' : 'home');
   if (!S.room) return 'loading';
   if (!me()) return 'join';
   const g = G();
   switch (g.phase){
     case 'ready': return 'ready';
-    case 'playing': return g.actorId === S.pid ? 'play-actor' : (canGuess(S.pid) ? 'play-guess' : 'play-watch');
+    case 'playing': return actorHere() ? 'play-actor' : (canGuess(S.pid) ? 'play-guess' : 'play-watch');
     case 'turnEnd': return 'turnEnd';
     case 'final': return 'final';
     default: return 'lobby';
@@ -599,8 +679,8 @@ function setHTML(id, html){
   if (el && el._h !== html){ el._h = html; el.innerHTML = html; }
 }
 
-const topbar = () => `<div id="hostLost"></div><div class="topbar"><div class="room-tag">部屋 <b>${esc(S.roomId)}</b></div>
-  <div><button class="icon-btn" data-action="sound" id="soundBtn">${S.sound ? '🔊' : '🔇'}</button><button class="icon-btn" data-action="leave">退出</button></div></div>`;
+const topbar = () => `<div id="hostLost"></div><div class="topbar"><div class="room-tag">${S.pass ? '📱 <b>スマホまわし</b>' : `部屋 <b>${esc(S.roomId)}</b>`}</div>
+  <div><button class="icon-btn" data-action="sound" id="soundBtn">${S.sound ? '🔊' : '🔇'}</button><button class="icon-btn" data-action="leave">${S.pass ? 'やめる' : '退出'}</button></div></div>`;
 const localBanner = () => S.local ? `<div class="banner">🧪 <b>デモモード</b>：Firebaseが未設定なので、<b>同じブラウザの別タブ同士</b>でだけ遊べます。READMEの手順で設定すると、みんなのスマホで遊べます。</div>` : '';
 const nameForm = (btnLabel) => `<form id="nameForm" autocomplete="off">
   <label for="nameInput">なまえ</label>
@@ -613,6 +693,9 @@ function skeleton(key){
       <div class="hero"><img class="hero-logo" src="img/logo.png" alt="ジェスチャーパーティー" width="1100" height="560"><p>体だけで伝えて、みんなで当てよう！</p></div>
       ${localBanner()}
       <div class="card">${nameForm('部屋をつくる')}</div>
+      <div class="card pass-card"><h3>📱 1台でスマホまわし</h3>
+        <p class="small">スマホが1台だけでもOK！名前を入れて、順番にスマホを回して遊びます。</p>
+        <button class="btn big yellow" data-action="passOpen">スマホまわしで遊ぶ</button></div>
       <div class="card howto"><h3>あそびかた</h3><ol>
         <li>部屋をつくって、URLをみんなに送る</li>
         <li>演じる人のスマホにだけお題が出る</li>
@@ -624,7 +707,19 @@ function skeleton(key){
       <div class="card"><h2>部屋 <span style="letter-spacing:.1em">${esc(S.pendingRoom || S.roomId)}</span> にさんか</h2>${nameForm('入る')}
       <button class="link-btn" type="button" data-action="home">新しく部屋をつくる</button></div>`;
     case 'loading': return `<div class="loading">つないでいます…</div>`;
-    case 'lobby': return `${topbar()}${two(`
+    case 'pass-setup': return `
+      <div class="hero"><img class="hero-logo sm" src="img/logo.png" alt="ジェスチャーパーティー" width="1100" height="560"></div>
+      <div class="card"><h2>📱 スマホまわし：あそぶ人</h2>
+        <p class="small" style="margin-top:-6px">演じる順番は、この順番になります（2〜${MAX_PLAYERS}人）</p>
+        <div id="passList"></div>
+        <button class="btn" data-action="passAdd" id="passAddBtn">＋ 人をふやす</button></div>
+      <button class="btn huge primary" data-action="passStart">ルールを決める ▶</button>
+      <button class="link-btn" type="button" data-action="home">ホームにもどる</button>`;
+    case 'lobby': return S.pass ? `${topbar()}${two(`
+      <div class="card"><h2>あそぶ人 <span id="pcount" class="small"></span></h2><div id="players"></div>
+        <button class="btn" style="margin-top:12px" data-action="passEdit">✏️ 名前・人数をかえる</button></div>
+      <div id="startArea" class="sticky-start"></div>`, `
+      <div class="card"><h2>ルール <span id="hostNote" class="small"></span></h2><div id="settings"></div></div>`, 'lobby')}` : `${topbar()}${two(`
       <div class="card"><div class="small" style="text-align:center">この部屋のURLをみんなに送ってね</div>
         <div class="code">${esc(S.roomId)}</div>
         <div class="share"><button class="btn yellow" data-action="copy">URLコピー</button><button class="btn yellow" data-action="share">送る</button><button class="btn yellow" data-action="qr">QR</button></div>
@@ -641,7 +736,7 @@ function skeleton(key){
       <div class="word-card hide"><div class="word-genre" id="wordGenre"></div><div class="word" id="word"></div>
         <div class="word-hint">声を出さずに体で表現しよう！</div><div class="word-wait">じゅんび…</div></div>`, `
       <div class="actor-btns" id="actorButtons"></div>
-      <div class="card feed-card"><h3>みんなの回答</h3><div class="feed" id="feed"></div></div>`, 'play')}`;
+      <div class="card feed-card"><h3>${S.pass ? '当てたお題' : 'みんなの回答'}</h3><div class="feed" id="feed"></div></div>`, 'play')}`;
     case 'play-guess':
     case 'play-watch': {
       const c = G().cfg || DEFAULT_SETTINGS;
@@ -676,11 +771,16 @@ function fill(key){
   const g = G(), c = g.cfg || settings();
   setHTML('hostLost', hostLostHTML());
   switch (key){
+    case 'pass-setup': {
+      setHTML('passList', passSetupHTML());
+      const add = document.getElementById('passAddBtn'); if (add) add.hidden = S.passNames.length >= MAX_PLAYERS;
+      break;
+    }
     case 'lobby': {
       const s = settings(), host = isHost();
-      setHTML('pcount', `${onlinePlayers().length}/${MAX_PLAYERS}人`);
+      setHTML('pcount', S.pass ? `${onlinePlayers().length}人` : `${onlinePlayers().length}/${MAX_PLAYERS}人`);
       setHTML('players', playersHTML(s));
-      setHTML('hostNote', host ? '（あなたがホストです👑）' : '（ホストが決めます）');
+      setHTML('hostNote', S.pass ? '' : host ? '（あなたがホストです👑）' : '（ホストが決めます）');
       setHTML('settings', settingsHTML(s, host));
       const err = startError();
       setHTML('startArea', host
@@ -693,7 +793,11 @@ function fill(key){
       setHTML('turnNo', `ターン ${(g.turn || 0) + 1} / ${(g.order || []).length}`);
       setHTML('readyInfo', `<div class="big-emoji">${avHTML(pEmoji(a), 'av-big')}</div><div class="turn-name">${esc(pName(a))} さんの番！</div>
         ${c.battle === 'team' ? teamBadge(g.actorTeam) : ''}<div class="rule-text"><span class="lv-tag lv-${c.level || 'normal'}">${(c.level || 'normal').toUpperCase()}</span> ${ruleText(c)}</div>`);
-      if (a === S.pid){
+      if (S.pass){
+        setHTML('readyAction', `<div class="note pass-hand">📱 スマホを <b>${esc(pName(a))}</b> さんに渡してね<br><span class="small">ほかの人は画面を見ないでね！</span></div>
+          <button class="btn huge primary" data-action="actorStart">スタート！</button>
+          <button class="link-btn" type="button" data-action="skip">この人をとばす</button>`);
+      } else if (a === S.pid){
         setHTML('readyAction', `<div class="note">🤫 お題はあなたの画面にだけ出ます。<br>まわりの人に見えないようにしてね！</div>
           <button class="btn huge primary" data-action="actorStart">スタート！</button>`);
       } else {
@@ -745,7 +849,8 @@ function fill(key){
     case 'final': {
       setHTML('finalArea', finalHTML(g, c));
       setHTML('finalActions', (isHost() ? `<button class="btn big primary" data-action="again">もう一度あそぶ</button>` : `<div class="note">ホストが「もう一度あそぶ」をおすと、ロビーにもどります</div>`)
-        + `<button class="btn" data-action="leave">部屋を出る</button>`);
+        + (S.pass ? `<button class="btn" data-action="passEdit">✏️ 名前・人数をかえる</button><button class="btn" data-action="leave">ホームにもどる</button>`
+                  : `<button class="btn" data-action="leave">部屋を出る</button>`));
       break;
     }
   }
@@ -771,8 +876,8 @@ const ruleText = c => c.timeMode === 'limit' ? `${fmtJa(c.limitSec)}で何問当
 
 function chipHTML(p, clickable){
   const host = R().meta && R().meta.hostId === p.id;
-  const cls = `pchip ${p.online ? '' : 'off'} ${p.id === S.pid ? 'me' : ''}`;
-  const inner = `${avHTML(p.emoji)} ${esc(p.name)}${host ? ' 👑' : ''}`;
+  const cls = `pchip ${p.online ? '' : 'off'} ${p.id === S.pid && !S.pass ? 'me' : ''}`;
+  const inner = `${avHTML(p.emoji)} ${esc(p.name)}${host && !S.pass ? ' 👑' : ''}`;
   return clickable ? `<button class="${cls}" data-action="team" data-id="${p.id}" title="タップでチームをかえる">${inner}</button>` : `<span class="${cls}">${inner}</span>`;
 }
 function playersHTML(s){
@@ -923,6 +1028,14 @@ async function onClick(e){
       S.sound = !S.sound; store.set('gesture-sound', S.sound ? 'on' : 'off');
       el.textContent = S.sound ? '🔊' : '🔇'; if (S.sound) beep('tick'); break;
     case 'leave': leave(); break;
+    case 'passOpen': openPassSetup(); break;
+    case 'passAdd':
+      if (S.passNames.length < MAX_PLAYERS){ S.passNames.push(''); render();
+        const ins = document.querySelectorAll('[data-pass]'); if (ins.length) ins[ins.length - 1].focus(); }
+      break;
+    case 'passDel': S.passNames.splice(Number(el.dataset.i), 1); render(); break;
+    case 'passStart': startPass(); break;
+    case 'passEdit': passEdit(); break;
     case 'set': {
       if (!isHost()) return;
       const row = SETTING_ROWS.find(r => r.key === el.dataset.key); if (!row) return;
@@ -1061,6 +1174,14 @@ async function main(){
   document.addEventListener('click', onClick);
   document.addEventListener('submit', onSubmit);
   document.addEventListener('change', onChange);
+  // スマホまわしの名前入力
+  document.addEventListener('input', e => { const i = e.target.dataset && e.target.dataset.pass; if (i != null) S.passNames[Number(i)] = e.target.value; });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.target.dataset && e.target.dataset.pass != null){
+      e.preventDefault(); const ins = [...document.querySelectorAll('[data-pass]')], k = ins.indexOf(e.target);
+      if (k < ins.length - 1) ins[k + 1].focus(); else e.target.blur();
+    }
+  });
   await initDB();
   setInterval(tick, 100);
   const r = (new URLSearchParams(location.search).get('r') || '').toUpperCase().replace(/[^A-Z0-9]/g, '');

@@ -101,6 +101,14 @@ button.pchip{cursor:pointer}
 .seg button[data-key=level][data-val=easy].on{background:var(--green);color:#fff}
 .seg button[data-key=level][data-val=normal].on{background:var(--blue);color:#fff}
 .seg button[data-key=level][data-val=hard].on{background:var(--red);color:#fff}
+/* スマホまわし */
+.pass-card p{margin:-4px 0 12px;line-height:1.6}
+.pass-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.pass-row input[type=text]{margin:0;flex:1;min-width:0;padding:10px 12px}
+.pass-no{flex:none;width:28px;height:28px;border-radius:50%;background:var(--yellow);border:2px solid var(--ink);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px}
+.pass-del{flex:none;width:40px;height:40px;border:2px solid var(--ink);border-radius:12px;background:#fff;font:inherit;font-weight:800;font-size:16px;cursor:pointer;color:var(--ink);touch-action:manipulation}
+.pass-hand{font-size:18px;background:#fff3c4;border-style:solid;border-color:var(--orange)}
+.pass-hand b{font-size:22px}
 .genre-label{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .mini-btn{border:2px solid var(--ink);background:#fff;border-radius:999px;padding:4px 12px;font:inherit;font-weight:800;font-size:12px;color:var(--ink);cursor:pointer;white-space:nowrap;touch-action:manipulation}
 .hard-tag{display:inline-block;font-size:10px;background:var(--ink);color:#fff;border-radius:6px;padding:1px 5px;margin-left:2px;vertical-align:middle}
