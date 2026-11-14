@@ -17,9 +17,11 @@ const avHTML = (v, cls = '') => isAvatar(v)
   : `<span class="av-emoji ${cls}">${esc(v || '🙂')}</span>`;
 const TEAM = { red:{ name:'あかチーム' }, blue:{ name:'あおチーム' } };
 const GENRES = window.GENRES || [];
+// 最初はえらばないジャンル（ホストがあとでえらべる）
+const DEFAULT_OFF = ['story', 'kotowaza'];
 const DEFAULT_SETTINGS = {
   battle:'solo', answer:'voice', timeMode:'limit', limitSec:60, target:5, targetMax:180, turnsEach:1,
-  level:'normal', genres: Object.fromEntries(GENRES.map(g => [g.id, true]))
+  level:'normal', genres: Object.fromEntries(GENRES.map(g => [g.id, !DEFAULT_OFF.includes(g.id)]))
 };
 const LEVELS = [['easy','EASY'],['normal','NORMAL'],['hard','HARD']];
 // ジャンルの、そのむずかしさのお題（古い形式の words にも対応）
